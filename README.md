@@ -117,3 +117,8 @@ cargo build --release
 ```
 
 Requires stable Rust (edition 2024).
+
+## License
+
+MIT.
+
