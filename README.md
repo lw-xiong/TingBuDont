@@ -54,7 +54,7 @@ TINGBUDONT_MODELS=/path/to/models tingbudont scanned.pdf --ocr
 
 Memory is proportional to page area, so `--ocr-max-side` (default 1400 px long
 side) is the knob. Measured on a 200 dpi, 2200×1700 CJK textbook scan, one page
-at a time:
+at a time (single runs; repeat runs of the same slice vary by ±0.2 s and ±3 MB):
 
 | long side | peak RSS | time/page | content recall |
 |---|---|---|---|
