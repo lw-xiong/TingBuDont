@@ -11,7 +11,6 @@ it runs.
 ```sh
 tingbudont lecture_slides.pdf                       # writes lecture_slides.md beside the input
 tingbudont textbook_chapter1.pdf -o cleaned_notes.md
-tingbudont document.pdf --no-header                 # skip the AI context header
 tingbudont document.pdf --stdout                    # print instead of writing a file
 tingbudont document.pdf --force                     # overwrite an existing output file
 tingbudont document.pdf --verbose                   # per-page diagnostics on stderr
@@ -39,8 +38,6 @@ file is never overwritten unless `--force` is passed.
 - Detects scanned/image-only pages and pages whose text is garbled (bad
   ToUnicode / Private Use Area glyphs). With `--ocr` it transcribes them;
   without it, it lists them in an OCR notice.
-- Prepends a short header saying what the document is and asking the reading
-  model to keep terminology, numbers, and deadlines exact.
 
 ## OCR (optional)
 

@@ -27,10 +27,6 @@ pub struct Cli {
     #[arg(long = "stdout")]
     pub stdout: bool,
 
-    /// Omit the AI context header.
-    #[arg(long = "no-header")]
-    pub no_header: bool,
-
     /// Allow overwriting an existing output file.
     #[arg(long = "force")]
     pub force: bool,
@@ -100,15 +96,7 @@ pub fn run() -> Result<(), CliError> {
         }
     }
     crate::layout::reconstruct(&mut doc, &crate::layout::LayoutOptions::default());
-    let body = crate::markdown::render(&doc);
-    let content = if args.no_header {
-        body
-    } else {
-        let mut s = crate::header::ai_context_header(&doc);
-        s.push_str("\n\n");
-        s.push_str(&body);
-        s
-    };
+    let content = crate::markdown::render(&doc);
 
     if args.verbose {
         eprintln!(

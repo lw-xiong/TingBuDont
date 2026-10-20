@@ -3,7 +3,6 @@
 
 pub mod cli;
 pub mod extract;
-pub mod header;
 pub mod layout;
 pub mod markdown;
 pub mod ocr;
