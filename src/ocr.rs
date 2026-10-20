@@ -158,6 +158,13 @@ pub struct Line {
 
 /// Map pixel-space lines to PDF user space. Pure, so it is tested without the
 /// 6 MB of model weights.
+///
+/// `font_size` is reconstructed, not read: a detector reports line-box heights,
+/// not fonts. The page's median line height is pinned to [`BODY_SIZE`] and
+/// other lines are expressed relative to it — otherwise every OCR line clears
+/// the layout stage's absolute 14 pt heading threshold and the whole page
+/// becomes headings. Lines that are not clearly taller than the median are
+/// filed at the body size, so ragged box heights cannot fake a hierarchy.
 pub fn map_lines(
     lines: &[Line],
     image: (u32, u32),
@@ -171,7 +178,7 @@ pub fn map_lines(
     }
     let sx = pw / iw as f32;
     let sy = ph / ih as f32;
-    lines
+    let mut out: Vec<TextRun> = lines
         .iter()
         .filter_map(|l| {
             let text = l.text.trim();
@@ -192,7 +199,38 @@ pub fn map_lines(
                 page,
             })
         })
-        .collect()
+        .collect();
+    if out.is_empty() {
+        return out;
+    }
+    let median = median_of(&mut out.iter().map(|r| r.font_size).collect::<Vec<_>>());
+    let body = BODY_SIZE;
+    for run in &mut out {
+        let ratio = run.font_size / median.max(0.01);
+        run.font_size = if ratio >= TITLE_RATIO {
+            body * ratio
+        } else {
+            body
+        };
+    }
+    out
+}
+
+/// Nominal body font size for OCR'd pages. The detector reports box heights,
+/// not fonts, so the page's median line is pinned to a normal body size and
+/// everything else is expressed relative to it — that is what the layout
+/// stage's absolute 14 pt heading threshold expects.
+const BODY_SIZE: f32 = 11.0;
+/// How much taller than the page's median line a line must be to count as a
+/// title rather than body text.
+const TITLE_RATIO: f32 = 1.3;
+
+fn median_of(values: &mut [f32]) -> f32 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    values.sort_by(|a, b| a.total_cmp(b));
+    values[values.len() / 2]
 }
 
 /// Initialise the OCR directory: `$TINGBUDONT_MODELS`, else the XDG data dir.
@@ -307,7 +345,31 @@ mod tests {
         assert!((runs[1].bbox.y1 - 10.0).abs() < 0.01);
         assert!(runs[1].bbox.y1 < runs[0].bbox.y1);
         assert_eq!(runs[0].page, 3);
-        assert!((runs[0].font_size - 10.0).abs() < 0.01);
+        // Box height is not font size: the page's median line is pinned to the
+        // nominal body size, so both lines land there.
+        assert!((runs[0].font_size - BODY_SIZE).abs() < 0.01);
+        assert!((runs[0].font_size - runs[1].font_size).abs() < 0.01);
+    }
+
+    #[test]
+    fn only_clearly_taller_lines_keep_their_size() {
+        // Three body lines at 20 px and one title at 42 px.
+        let runs = map_lines(
+            &[
+                line("body one", 0.0, 0.0, 400.0, 20.0),
+                line("body two", 30.0, 0.0, 400.0, 20.0),
+                line("body three", 60.0, 0.0, 400.0, 20.0),
+                line("TITLE", 100.0, 0.0, 400.0, 42.0),
+            ],
+            (1000, 500),
+            (500.0, 250.0),
+            0,
+        );
+        let body = runs[0].font_size;
+        let title = runs[3].font_size;
+        assert!((body - BODY_SIZE).abs() < 0.01);
+        assert!((title - BODY_SIZE * 2.1).abs() < 0.01);
+        assert!(title > body * TITLE_RATIO);
     }
 
     #[test]
