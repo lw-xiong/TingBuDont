@@ -3,7 +3,7 @@
 Chinese university PDFs into Markdown you can paste into an LLM.
 
 One Rust binary, 9.5 MB, no Python and no network. A text PDF costs ~18 MB and
-converts in under a second; scanned pages need `--ocr`, which costs ~212 MB while
+converts in under a second; scanned pages need `--ocr`, which costs ~240 MB while
 it runs.
 
 ## Usage
@@ -53,28 +53,27 @@ TINGBUDONT_MODELS=/path/to/models tingbudont scanned.pdf --ocr
 ```
 
 Memory is proportional to page area, so `--ocr-max-side` (default 1400 px long
-side) is the knob. Measured on a 200 dpi, 2200×1700 CJK textbook scan, one page
-at a time (single runs; repeat runs of the same slice vary by ±0.2 s and ±3 MB):
+side) is the knob. Medians of 3 runs of the same 3 dense pages from a 200 dpi,
+2200×1700 CJK textbook scan, through the release binary (whole PDF, one process):
 
 | long side | peak RSS | time/page | content recall |
 |---|---|---|---|
-| 2200 (native) | 424 MB | 1.38 s | baseline |
-| 1600 | 269 MB | 1.04 s | 99.4 % |
-| **1400 (default)** | **212 MB** | **0.86 s** | **99.5 %** |
-| 1100 | 139 MB | 0.72 s | 98.8 % |
-| 900 | 110 MB | 0.68 s | 94.5 % |
+| 2200 (native) | 446 MB | 1.33 s | baseline |
+| 1600 | 300 MB | 0.96 s | 98.4 % |
+| **1400 (default)** | **240 MB** | **0.82 s** | **98.3 %** |
+| 1100 | 170 MB | 0.63 s | 96.3 % |
+| 900 | 154 MB | 0.57 s | 89.9 % |
 
-The floor is ~106 MB (weights plus inference arenas) regardless of input size,
-so shrinking further than 1100 px buys little. Recall is character-level against
-the native-resolution output on dense pages; page 60 of the same book scored
-94.6 % at 1400 px.
+Recall is the character multiset of the page's text against the native-resolution
+output, whitespace ignored. Below 1100 px the saving flattens: 900 px buys 16 MB
+and 0.06 s/page but loses 6.4 points of text.
 
-Whole-book run of that textbook (152 scanned pages, 67 MB PDF): **130 s, 342 MB
-peak, 183 KB of Markdown**. The peak is above the per-page 212 MB because the
-page images are pulled from one in-memory copy of the PDF (~130 MB for this
-file); that copy is dropped before layout. Text PDFs are unaffected — a 6-page
-form converts in 18.5 MB, and with `--ocr` given but nothing to OCR it costs
-20.9 MB because the engine is never loaded.
+Whole-book run of that textbook (152 scanned pages, 67 MB PDF): **about 130 s,
+330–350 MB peak, 180 KB of Markdown**. The peak is above the per-page 240 MB
+because the page images are pulled from one in-memory copy of the PDF (~130 MB
+for this file); that copy is dropped before layout. Text PDFs are unaffected — a
+6-page form converts in 18.6 MB, and with `--ocr` given but nothing to OCR it
+costs 20.9 MB because the engine is never loaded.
 
 OCR text enters the normal layout pipeline as positioned lines, so columns and
 paragraphs are reconstructed the same way as extracted text. Tables on scanned
