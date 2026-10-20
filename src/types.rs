@@ -9,15 +9,6 @@
 //! verbatim from the extractor. Layout heuristics are written in that space and
 //! never re-derive coordinates they don't have.
 
-use std::path::Path;
-
-/// A point in PDF user space (points, origin bottom-left, y-up).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Point {
-    pub x: f32,
-    pub y: f32,
-}
-
 /// A bounding box in PDF user space.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BBox {
@@ -78,16 +69,6 @@ pub struct TextRun {
     /// Font name if known — used to detect bold/heading-like runs.
     pub font: Option<String>,
     pub page: usize,
-}
-
-impl TextRun {
-    pub fn len_chars(&self) -> usize {
-        self.text.chars().count()
-    }
-    /// Leading whitespace?
-    pub fn starts_ws(&self) -> bool {
-        self.text.starts_with(char::is_whitespace)
-    }
 }
 
 /// A page's extracted content.
@@ -184,12 +165,6 @@ impl Document {
     }
     pub fn ocr_required_pages(&self) -> Vec<usize> {
         self.ocr_pages.iter().map(|(p, _)| *p).collect()
-    }
-    pub fn empty_with(source: &Path) -> Self {
-        Self {
-            source: Some(source.to_string_lossy().into_owned()),
-            ..Default::default()
-        }
     }
 }
 

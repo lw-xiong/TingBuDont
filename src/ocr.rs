@@ -1,22 +1,9 @@
 //! Optional OCR pass for scanned (image-only) pages, backed by rusto-rs.
 //!
-//! Runs *after* extraction, so a PDF that already has text pays nothing: no
-//! model is loaded, no engine is built, peak RSS stays at the extractor's
-//! ~18 MB. When `--ocr` is given the engine is built once and each flagged page
-//! is decoded, recognized, and dropped before the next one, so peak memory is
-//! one page's worth rather than N pages'.
-//!
-//! Memory is why `--ocr-max-side` exists. The engine's cost is roughly a
-//! ~105 MB floor plus ~100 MB per megapixel of input; a 200 dpi A4 scan is
-//! 2200×1700 = 3.7 Mpx, which measured 424 MB. Clamping the long side to
-//! 1400 px measured 212 MB (−50 %) at 99 % character recall on a dense CJK
-//! textbook page, and 1100 px measured 139 MB (−67 %) at 98.8 %. Default 1400
-//! buys the largest saving that costs nothing measurable.
-//!
-//! OCR output is plain text lines positioned as [`TextRun`]s, so the existing
-//! layout stage orders them into columns and paragraphs. No table grid is
-//! reconstructed from OCR boxes: for an LLM reader, text that is present and
-//! readable beats a grid that is half wrong.
+//! Runs *after* extraction, so text PDFs never build the engine and stay at the
+//! extractor's ~18 MB. One page is decoded, recognized, and dropped before the
+//! next, so peak memory is one page rather than the whole document. The engine
+//! itself costs ~105 MB plus ~100 MB/Mpx, which is what `--ocr-max-side` trims.
 
 use std::path::{Path, PathBuf};
 
@@ -216,10 +203,8 @@ pub fn map_lines(
     out
 }
 
-/// Nominal body font size for OCR'd pages. The detector reports box heights,
-/// not fonts, so the page's median line is pinned to a normal body size and
-/// everything else is expressed relative to it — that is what the layout
-/// stage's absolute 14 pt heading threshold expects.
+/// Nominal body font size for OCR'd pages; the layout stage's 14 pt heading
+/// threshold is absolute, so relative heights must land in that scale.
 const BODY_SIZE: f32 = 11.0;
 /// How much taller than the page's median line a line must be to count as a
 /// title rather than body text.

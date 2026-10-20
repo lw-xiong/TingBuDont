@@ -7,21 +7,13 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-# Direct use: font-encoding diagnostics. Same version pdfsink-rs already pulls
-# in, so this adds no new download to the tree.
+# Font-encoding diagnostics; pdfsink-rs already pulls this version in.
 lopdf = "0.42"
-# Pure-Rust PDF extraction. Chosen over mupdf (AGPL + C bindings) and
-# pdfium-render (C++ bindings): pdfsink-rs is MIT, pure Rust, exposes
-# positioned text (Char{x0,x1,y0,y1,width,height,size,fontname}) required for
-# column reconstruction, and ships table extraction.
 pdfsink-rs = "0.2"
-# OCR engine for scanned pages, pure Rust (PP-OCRv6 weights run on rten, no
-# OpenCV/CMake/FFI). Optional: only built into the binary as code, only loaded
-# into memory when `--ocr` is passed, because it costs ~105 MB floor + ~100 MB
-# per megapixel. Models are not vendored; scripts/fetch-models.sh pulls them.
+# Scanned pages. Pure Rust (PP-OCRv6 on rten). Costs ~105 MB + ~100 MB/Mpx, so
+# it is loaded only under `--ocr`; models come from scripts/fetch-models.sh.
 rusto-rs = { git = "https://github.com/byrizki/rusto-rs", tag = "v0.3.1" }
-# Direct use: JPEG header read only (page image dimensions, to map OCR boxes
-# back into PDF points). Already in the tree via rusto-rs.
+# JPEG header read only, for page image dimensions.
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [profile.release]

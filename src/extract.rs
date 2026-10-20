@@ -1,20 +1,11 @@
 //! PDF text + layout extraction. Library adapter over pdfsink-rs.
 //!
-//! pdfsink-rs (pure Rust, MIT) parses the PDF and yields, per page, a `Vec<Char>`
-//! where each `Char` carries `text` plus positioned geometry (`x0,x1,y0,y1`,
-//! `top,bottom`, `width,height`, `size`, `fontname`) and the page also carries
-//! `images`, `lines`, `rects`. We map that into our own [`PageContent`] /
-//! [`TextRun`] model so the layout stage is independent of the backend.
+//! pdfsink-rs yields per page a `Vec<Char>` with positioned geometry and the
+//! page's `images`/`lines`/`rects`; we map that into [`PageContent`] /
+//! [`TextRun`] so the layout stage is backend-independent.
 //!
-//! Key mapping decisions:
-//! - We use pdfsink's PDF-user-space `y0/y1` (origin bottom-left, y-up), NOT the
-//!   `top/bottom` (top-down) convention, because our layout code is written in
-//!   y-up space. Both are available on every Char.
-//! - A `TextRun` groups consecutive chars on the same line (within a vertical
-//!   tolerance) so the layout stage has fewer, larger units to order. We do
-//!   NOT merge across the backend's own gaps that would alter reading order.
-//! - Image-only pages (chars empty, images non-empty) are flagged for OCR.
-//! - Garbled text (bad ToUnicode / PUA) is detected downstream.
+//! Coordinates are pdfsink's PDF-user-space `y0/y1` (origin bottom-left, y-up),
+//! never its top-down `top/bottom`, because the layout code is written y-up.
 
 use std::path::Path;
 
