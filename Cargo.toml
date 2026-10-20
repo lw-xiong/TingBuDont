@@ -15,6 +15,14 @@ lopdf = "0.42"
 # positioned text (Char{x0,x1,y0,y1,width,height,size,fontname}) required for
 # column reconstruction, and ships table extraction.
 pdfsink-rs = "0.2"
+# OCR engine for scanned pages, pure Rust (PP-OCRv6 weights run on rten, no
+# OpenCV/CMake/FFI). Optional: only built into the binary as code, only loaded
+# into memory when `--ocr` is passed, because it costs ~105 MB floor + ~100 MB
+# per megapixel. Models are not vendored; scripts/fetch-models.sh pulls them.
+rusto-rs = { git = "https://github.com/byrizki/rusto-rs", tag = "v0.3.1" }
+# Direct use: JPEG header read only (page image dimensions, to map OCR boxes
+# back into PDF points). Already in the tree via rusto-rs.
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [profile.release]
 opt-level = 3

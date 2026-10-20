@@ -3,7 +3,8 @@
 Convert messy Chinese university PDFs into clean Markdown for downstream LLMs.
 
 Pure Rust, single native binary. No Python, no Docker, no network, no external
-services. Memory use on typical text PDFs is ~10–20 MB.
+services. Memory use on typical text PDFs is ~10–20 MB; OCR is opt-in and costs
+~240 MB while it runs.
 
 ## Usage
 
@@ -14,6 +15,7 @@ tingbudont document.pdf --no-header                 # skip the AI context header
 tingbudont document.pdf --stdout                    # print instead of writing a file
 tingbudont document.pdf --force                     # overwrite an existing output file
 tingbudont document.pdf --verbose                   # per-page diagnostics on stderr
+tingbudont scanned.pdf --ocr                        # also transcribe scanned pages
 ```
 
 Default output is `<input stem>.md` next to the input file. An existing output
@@ -35,16 +37,64 @@ file is never overwritten unless `--force` is passed.
   emitted twice.
 - Drops repeated page headers/footers and bare page numbers.
 - Detects scanned/image-only pages and pages whose text is garbled (bad
-  ToUnicode / Private Use Area glyphs), and emits an OCR notice listing those
-  pages. It does not perform OCR.
+  ToUnicode / Private Use Area glyphs). With `--ocr` it transcribes them;
+  without it, it lists them in an OCR notice.
 - Prepends a context header instructing the downstream LLM to preserve
   specialized terminology, keep numbers and deadlines exact, and call out
   grading weights, credits, and eligibility conditions.
 
+## OCR (optional)
+
+`--ocr` transcribes image-only pages with [rusto-rs](https://github.com/byrizki/rusto-rs)
+(PP-OCRv6 weights on `rten`, pure Rust — no OpenCV, no FFI, no network at run
+time). Text PDFs never load the engine, so their footprint is unchanged.
+
+```sh
+scripts/fetch-models.sh          # ~6 MB into ~/.local/share/tingbudont/models
+tingbudont scanned.pdf --ocr --verbose
+tingbudont scanned.pdf --ocr --ocr-max-side 1100     # tighter memory budget
+TINGBUDONT_MODELS=/path/to/models tingbudont scanned.pdf --ocr
+```
+
+Memory is proportional to page area, so `--ocr-max-side` (default 1400 px long
+side) is the knob. Measured on a 200 dpi, 2200×1700 CJK textbook scan, one page
+at a time:
+
+| long side | peak RSS | time/page | content recall |
+|---|---|---|---|
+| 2200 (native) | 424 MB | 1.38 s | baseline |
+| 1600 | 269 MB | 1.04 s | 99.4 % |
+| **1400 (default)** | **212 MB** | **0.86 s** | **99.5 %** |
+| 1100 | 139 MB | 0.72 s | 98.8 % |
+| 900 | 110 MB | 0.68 s | 94.5 % |
+
+The floor is ~106 MB (weights plus inference arenas) regardless of input size,
+so shrinking further than 1100 px buys little. Recall is character-level against
+the native-resolution output on dense pages; page 60 of the same book scored
+94.6 % at 1400 px.
+
+Whole-book run of that textbook (152 scanned pages, 67 MB PDF): **130 s, 342 MB
+peak, 183 KB of Markdown**. The peak is above the per-page 212 MB because the
+page images are pulled from one in-memory copy of the PDF (~130 MB for this
+file); that copy is dropped before layout. Text PDFs are unaffected — a 6-page
+form converts in 18.5 MB, and with `--ocr` given but nothing to OCR it costs
+20.9 MB because the engine is never loaded.
+
+OCR text enters the normal layout pipeline as positioned lines, so columns and
+paragraphs are reconstructed the same way as extracted text. Tables on scanned
+pages are **not** rebuilt as grids — line boxes are not cell boundaries, and
+text that is present reads better to an LLM than a grid that is half wrong.
+
 ## Limitations
 
-- **No OCR.** Image-only and garbled pages are reported, not transcribed. Run an
-  OCR tool first if you need their text.
+- **OCR is line-level.** With `--ocr`, scanned pages are transcribed as text
+  lines with no font information, so bold/heading detection on those pages falls
+  back to size heuristics, and tables come out as flowing text. Decorative
+  covers, picture-matching exercises, and vertical text OCR poorly by nature.
+  Without `--ocr`, those pages are reported, not transcribed.
+- **OCR reads JPEG page images only.** Scans stored as JPEG-2000 or raw
+  Flate-compressed bitmaps inside the PDF are reported as image-only and left
+  untranscribed (`--verbose` says so).
 - **Tables need drawn borders.** Borderless tables and tables implied only by
   whitespace are not reconstructed as grids; their text flows as paragraphs.
 - **Column detection is heuristic.** Very uneven columns, text boxes floating in

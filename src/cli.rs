@@ -39,6 +39,24 @@ pub struct Cli {
     /// artifacts) to stderr. Does not affect the Markdown output.
     #[arg(long = "verbose")]
     pub verbose: bool,
+
+    /// OCR pages that carry no text layer (scans), instead of only reporting
+    /// them. Adds ~105 MB of resident memory plus ~100 MB per megapixel of
+    /// page image while it runs; text PDFs never load the engine.
+    #[arg(long = "ocr")]
+    pub ocr: bool,
+
+    /// Directory with `det.rten`, `rec.rten`, `dict.txt`. Defaults to
+    /// `$TINGBUDONT_MODELS`, else `~/.local/share/tingbudont/models`.
+    /// Run `scripts/fetch-models.sh` to populate it (about 7 MB).
+    #[arg(long = "ocr-models", value_name = "DIR")]
+    pub ocr_models: Option<PathBuf>,
+
+    /// Longest side, in pixels, the page image is clamped to before OCR.
+    /// Memory scales with area, so this is the main memory knob: 1400 saves
+    /// about half the memory at no measurable accuracy cost on 200 dpi scans.
+    #[arg(long = "ocr-max-side", value_name = "PX", default_value_t = 1400)]
+    pub ocr_max_side: u32,
 }
 
 pub enum CliError {
@@ -67,6 +85,20 @@ pub fn run() -> Result<(), CliError> {
     };
     let mut doc = crate::extract::extract(&args.input, &opts)
         .map_err(|e| CliError::Failure(format!("extraction failed: {e}")))?;
+    if args.ocr {
+        let models = args
+            .ocr_models
+            .clone()
+            .unwrap_or_else(crate::ocr::default_models_dir);
+        let mut engine =
+            crate::ocr::Ocr::new(&models, args.ocr_max_side).map_err(CliError::Failure)?;
+        let filled = engine
+            .fill(&mut doc, &args.input, args.verbose)
+            .map_err(|e| CliError::Failure(format!("OCR failed: {e}")))?;
+        if args.verbose {
+            eprintln!("tingbudont: OCR recovered text on {filled} page(s)");
+        }
+    }
     crate::layout::reconstruct(&mut doc, &crate::layout::LayoutOptions::default());
     let body = crate::markdown::render(&doc);
     let content = if args.no_header {
