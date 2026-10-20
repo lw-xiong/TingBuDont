@@ -2,7 +2,7 @@
 name = "tingbudont"
 version = "0.1.0"
 edition = "2024"
-description = "Convert messy Chinese university PDFs into clean, structurally accurate Markdown for downstream LLMs."
+description = "Chinese university PDFs to Markdown for LLM input."
 license = "MIT OR Apache-2.0"
 
 [dependencies]

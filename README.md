@@ -1,10 +1,10 @@
 # TingBuDont
 
-Convert messy Chinese university PDFs into clean Markdown for downstream LLMs.
+Chinese university PDFs into Markdown you can paste into an LLM.
 
-Pure Rust, single native binary. No Python, no Docker, no network, no external
-services. Memory use on typical text PDFs is ~10–20 MB; OCR is opt-in and costs
-~240 MB while it runs.
+One Rust binary, 9.5 MB, no Python and no network. A text PDF costs ~18 MB and
+converts in under a second; scanned pages need `--ocr`, which costs ~212 MB while
+it runs.
 
 ## Usage
 
@@ -39,15 +39,14 @@ file is never overwritten unless `--force` is passed.
 - Detects scanned/image-only pages and pages whose text is garbled (bad
   ToUnicode / Private Use Area glyphs). With `--ocr` it transcribes them;
   without it, it lists them in an OCR notice.
-- Prepends a context header instructing the downstream LLM to preserve
-  specialized terminology, keep numbers and deadlines exact, and call out
-  grading weights, credits, and eligibility conditions.
+- Prepends a short header saying what the document is and asking the reading
+  model to keep terminology, numbers, and deadlines exact.
 
 ## OCR (optional)
 
 `--ocr` transcribes image-only pages with [rusto-rs](https://github.com/byrizki/rusto-rs)
-(PP-OCRv6 weights on `rten`, pure Rust — no OpenCV, no FFI, no network at run
-time). Text PDFs never load the engine, so their footprint is unchanged.
+(PP-OCRv6 weights on `rten`, pure Rust, no FFI). Text PDFs never load the engine,
+so their footprint is unchanged.
 
 ```sh
 scripts/fetch-models.sh          # ~6 MB into ~/.local/share/tingbudont/models
