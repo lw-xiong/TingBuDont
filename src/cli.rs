@@ -1,0 +1,143 @@
+//! Command-line interface: argument parsing, dispatch, default output naming.
+//!
+//! Default behavior: write a Markdown file beside the input PDF, named after the
+//! input stem (foo.pdf -> foo.md). Never overwrite an existing file without
+//! explicit permission. `--stdout` writes to stdout instead. `-o` names the
+//! output path. `--force` permits overwriting an existing path.
+
+use std::path::PathBuf;
+
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(
+    name = "tingbudont",
+    version,
+    about = "Convert messy Chinese university PDFs into clean Markdown for downstream LLMs."
+)]
+pub struct Cli {
+    /// Path to the input PDF.
+    pub input: PathBuf,
+
+    /// Write Markdown to this path instead of beside the input.
+    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Write to stdout instead of a file.
+    #[arg(long = "stdout")]
+    pub stdout: bool,
+
+    /// Omit the AI context header.
+    #[arg(long = "no-header")]
+    pub no_header: bool,
+
+    /// Allow overwriting an existing output file.
+    #[arg(long = "force")]
+    pub force: bool,
+
+    /// Emit extraction diagnostics (page count, OCR-required pages, dropped
+    /// artifacts) to stderr. Does not affect the Markdown output.
+    #[arg(long = "verbose")]
+    pub verbose: bool,
+}
+
+pub enum CliError {
+    Usage(String),
+    Failure(String),
+}
+
+pub fn run() -> Result<(), CliError> {
+    let args = Cli::parse();
+
+    if !args.input.exists() {
+        return Err(CliError::Usage(format!(
+            "input file not found: {}",
+            args.input.display()
+        )));
+    }
+    if args.input.is_dir() {
+        return Err(CliError::Usage(format!(
+            "input is a directory, expected a PDF: {}",
+            args.input.display()
+        )));
+    }
+
+    let opts = crate::extract::ExtractOptions {
+        verbose: args.verbose,
+    };
+    let mut doc = crate::extract::extract(&args.input, &opts)
+        .map_err(|e| CliError::Failure(format!("extraction failed: {e}")))?;
+    crate::layout::reconstruct(&mut doc, &crate::layout::LayoutOptions::default());
+    let body = crate::markdown::render(&doc);
+    let content = if args.no_header {
+        body
+    } else {
+        let mut s = crate::header::ai_context_header(&doc);
+        s.push_str("\n\n");
+        s.push_str(&body);
+        s
+    };
+
+    if args.verbose {
+        eprintln!(
+            "tingbudont: {} page(s), {} block(s), {} OCR-required page(s)",
+            doc.page_count(),
+            doc.block_count(),
+            doc.ocr_required_pages().len()
+        );
+        for p in doc.ocr_required_pages() {
+            // Humans count pages from 1; the model counts from 0.
+            eprintln!("tingbudont: OCR required for page {}", p + 1);
+        }
+    }
+
+    if args.stdout {
+        print!("{content}");
+        return Ok(());
+    }
+
+    let out_path = match &args.output {
+        Some(p) => p.clone(),
+        None => default_output_path(&args.input),
+    };
+    crate::output::write_markdown(&out_path, &content, args.force)
+        .map_err(|e| CliError::Failure(format!("could not write {}: {e}", out_path.display())))?;
+    if args.verbose {
+        eprintln!("tingbudont: wrote {}", out_path.display());
+    }
+    Ok(())
+}
+
+/// Default output path: beside the input, same stem, `.md` extension.
+/// `foo.pdf` -> `foo.md`; `archive.tar.gz` -> `archive.tar.md`.
+pub fn default_output_path(input: &std::path::Path) -> PathBuf {
+    let parent = input.parent().unwrap_or_else(|| std::path::Path::new(""));
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "output".to_string());
+    parent.join(format!("{stem}.md"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_output_beside_input() {
+        let p = default_output_path(std::path::Path::new("/tmp/lecture_slides.pdf"));
+        assert_eq!(p, PathBuf::from("/tmp/lecture_slides.md"));
+    }
+
+    #[test]
+    fn default_output_preserves_parent() {
+        let p = default_output_path(std::path::Path::new("/home/u/notes/ch1.pdf"));
+        assert_eq!(p, PathBuf::from("/home/u/notes/ch1.md"));
+    }
+
+    #[test]
+    fn default_output_no_parent() {
+        let p = default_output_path(std::path::Path::new("doc.pdf"));
+        assert_eq!(p, PathBuf::from("doc.md"));
+    }
+}

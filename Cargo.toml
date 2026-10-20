@@ -1,0 +1,23 @@
+[package]
+name = "tingbudont"
+version = "0.1.0"
+edition = "2024"
+description = "Convert messy Chinese university PDFs into clean, structurally accurate Markdown for downstream LLMs."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+# Direct use: font-encoding diagnostics. Same version pdfsink-rs already pulls
+# in, so this adds no new download to the tree.
+lopdf = "0.42"
+# Pure-Rust PDF extraction. Chosen over mupdf (AGPL + C bindings) and
+# pdfium-render (C++ bindings): pdfsink-rs is MIT, pure Rust, exposes
+# positioned text (Char{x0,x1,y0,y1,width,height,size,fontname}) required for
+# column reconstruction, and ships table extraction.
+pdfsink-rs = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
